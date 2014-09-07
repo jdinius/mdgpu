@@ -1,0 +1,8 @@
+0.001000        /* stepsize               */
+1000000         /* nsteps                 */
+50            /* northo                 */
+1000            /* noutput                 */
+100          /* number of disks        */
+0.500000          /* rho                    */
+outputTest_gpu.bin       /* output file           */
+0                 /* process covariant vectors ? */
