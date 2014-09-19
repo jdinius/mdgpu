@@ -17,11 +17,14 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
-#include <random>
 #include "vector_types.h" // needed for cuda stuff
 #include "cuda_runtime_api.h" // cudaDeviceSynchronize()
 #include "cuda_runtime.h"
-
+#ifdef RAND_ON_HOST
+   #include <random>
+#else
+   #include "curand_kernel.h"
+#endif
 #define checkCudaErrors(val) check( (val), #val, __FILE__, __LINE__)
 
 template<typename T>
@@ -233,4 +236,16 @@ void lyapunov_kernel( float* R,
 					  float* lyap,
 					  float time,
 					  int size );
+
+#ifndef RAND_ON_HOST
+__global__ 
+void init_curand_kernel(curandState *state, 
+	                    unsigned int seed, 
+				        int size);
+
+__global__ 
+void generate_normal_kernel(curandState *state,
+	                        float *normal,
+						    int size);
+#endif
 #endif

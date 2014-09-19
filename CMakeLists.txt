@@ -16,6 +16,7 @@ file( GLOB  hpp *.hpp )
 
 #add_definitions( -DTIMING )
 add_definitions( -DDEBUG )
+#add_definitions(-DRAND_ON_HOST)
 #add_definitions( -DMAGMA )
 #add_definitions( -DLIST )
 

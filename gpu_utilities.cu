@@ -114,12 +114,14 @@ void initialize_gpu(float4* ps,
     boxSet_kernel<<<blocks1D,threadsPerBlock1D>>>(ps,nDisks,boxSize);
     cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
     
-	// initialize random number generator with desired seed (use thrust random to take care of this, I think)
-	float* h_velocities = (float *) malloc(sizeof(float)*2*nDisks);
 	float* d_velocities;
 	checkCudaErrors(cudaMalloc(&d_velocities, sizeof(float)*2*nDisks));
-	
 	unsigned long iSeed = 112324;
+
+#ifdef RAND_ON_HOST
+	// initialize random number generator with desired seed (use thrust random to take care of this, I think)
+	float* h_velocities = (float *) malloc(sizeof(float)*2*nDisks);
+	
 	default_random_engine generator( iSeed );
 	normal_distribution<float> distribution(0.0,1.0);
 	
@@ -130,6 +132,14 @@ void initialize_gpu(float4* ps,
     
 	// copy to device memory
 	checkCudaErrors(cudaMemcpy(d_velocities, h_velocities, sizeof(float) * 2 * nDisks, cudaMemcpyHostToDevice));
+	free(h_velocities);
+#else
+	curandState* d_curandState;
+	checkCudaErrors(cudaMalloc(&d_curandState, sizeof(curandState)*2*nDisks));
+	init_curand_kernel<<<2*blocks1D,threadsPerBlock1D>>>(d_curandState,iSeed,2*nDisks);
+	generate_normal_kernel<<<2*blocks1D,threadsPerBlock1D>>>(d_curandState,d_velocities,2*nDisks);
+	checkCudaErrors(cudaFree(d_curandState));
+#endif
 	// convert into float4 type
 	copy_velocities_kernel<<<blocks1D,threadsPerBlock1D>>>(d_velocities,ps,nDisks,DIM);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
@@ -195,8 +205,7 @@ void initialize_gpu(float4* ps,
 	checkCudaErrors(cudaFree(d_ctint));
 
 	//
-	free(h_velocities);
-
+	
 	return;
 }
 
@@ -1081,3 +1090,34 @@ __global__ void lyapunov_kernel( float* R,
 	// do Lyapunov exponent calculation
 	lyap[tid] = cum[tid] / time;
 }
+
+#ifndef RAND_ON_HOST
+__global__ void init_curand_kernel(curandState *state, 
+	                               unsigned int seed, 
+							       int size)
+{
+	int tid = threadIdx.x + blockDim.x * blockIdx.x;
+
+	if (tid >= size){
+		return;
+	}
+	
+	curand_init(seed, tid, 0, &state[tid]);
+}
+
+__global__ void generate_normal_kernel(curandState *state,
+	                                   float *normal,
+									   int size)
+{
+	int tid = threadIdx.x + blockDim.x * blockIdx.x;
+
+	if (tid >= size){
+		return;
+	}
+
+	curandState lstate = state[tid];
+	float rnd = curand_normal(&lstate);
+	state[tid] = lstate;
+	normal[tid] = rnd;
+}
+#endif
